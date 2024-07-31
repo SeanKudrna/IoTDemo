@@ -1,0 +1,2 @@
+gmqtt==0.6.6
+python-dotenv==1.0.0

@@ -1,0 +1,5 @@
+# Ignore AWS IoT certificates and keys
+.env
+aws/root-ca/*
+aws/device-certificate/*
+aws/private-key/*
