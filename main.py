@@ -2,26 +2,31 @@ import asyncio
 import json
 import ssl
 import os
+import random
+from datetime import datetime
 from gmqtt import Client as MQTTClient
 from dotenv import load_dotenv
 
 # Load environment variables from a .env file
 load_dotenv()
 
-# This topic matches the one listed in the resource section of the Publish, Subscribe, and Receive permissions in the AWS Policy attached to our Thing.
+# Define the MQTT topic
 topic = "iot/topic"
 
-# Define a custom MQTT client with specific callback methods
 class MyMQTTClient(MQTTClient):
+    """
+    Custom MQTT Client class inheriting from gmqtt.Client.
+    Handles connection and disconnection events.
+    """
+    
     async def on_connect(self, flags, rc, properties):
         """
-        Callback for when the client receives a CONNACK response from the server.
-        Subscribes to the specified topic if the connection is successful.
+        Handles the event when the client connects to the broker.
         
         Parameters:
-        - flags: dict, connection flags.
-        - rc: int, connection result code.
-        - properties: dict, additional properties.
+        - flags: connection flags
+        - rc: return code of the connection
+        - properties: connection properties
         """
         if rc == 0:
             print("Connected successfully.")
@@ -31,43 +36,62 @@ class MyMQTTClient(MQTTClient):
 
     async def on_disconnect(self, exc):
         """
-        Callback for when the client disconnects from the server.
+        Handles the event when the client disconnects from the broker.
         
         Parameters:
-        - exc: Exception, the exception causing the disconnection, if any.
+        - exc: exception if the disconnection was due to an error
         """
         print("Disconnected")
 
 async def main():
     """
-    Main function to establish an MQTT connection, publish messages periodically,
-    and handle graceful shutdown on interrupt.
+    Main coroutine to initialize the MQTT client, set up SSL, and publish messages in a loop.
     """
-    # Initialize the MQTT client with a unique client ID. This client ID matches the one listed in the Resource section of the Connect permission in the AWS Policy attached to our Thing.
     client = MyMQTTClient("unique_client_id_1108")
     
-    # Set up SSL context for secure communication
+    # Create an SSL context for a secure connection
     ssl_context = ssl.create_default_context(ssl.Purpose.SERVER_AUTH)
     ssl_context.load_verify_locations(os.getenv('ROOT_CA_FILE'))
     ssl_context.load_cert_chain(os.getenv('CERT_FILE'), os.getenv('KEY_FILE'))
-
+    
     # Connect to the MQTT broker
     await client.connect(os.getenv('AWS_ENDPOINT'), 8883, ssl=ssl_context)
     
     try:
         while True:
-            # Prepare and publish a JSON payload with sensor data
-            payload = json.dumps({"temperature": 22.5, "voltage": 24.8, "device_id": 1108})
+            now = datetime.utcnow().isoformat() + 'Z'  # Current UTC time in ISO format
+
+            # Possible error codes for the payload
+            possible_errors = ["E001", "E002", "E003", "E004", "E005"]
+            include_errors = random.choice([True, False])  # Randomly decide whether to include errors
+            error_list = random.sample(possible_errors, random.randint(1, len(possible_errors))) if include_errors else []
+
+            # Create the payload as a JSON string
+            payload = json.dumps({
+                "timestamp": now,
+                "temperature": random.uniform(20.0, 25.0),
+                "voltage": random.uniform(23.0, 25.0),
+                "device_id": "1108",
+                "location": {"lat": random.uniform(-90, 90), "lon": random.uniform(-180, 180)},
+                "PWM": random.randint(100, 200),
+                "battery_health": "Good",
+                "battery_charge": random.randint(50, 100),
+                "speed": random.uniform(0.0, 10.0),
+                "load_weight": random.uniform(0.0, 100.0),
+                "cart_status": random.choice(["Operating", "Idle", "Maintenance"]),
+                "error_codes": error_list
+            })
+
+            # Publish the payload to the MQTT topic
             client.publish("iot/topic", payload, qos=1)
             print(f"Published: {payload}")
-            await asyncio.sleep(10)
+            await asyncio.sleep(10)  # Wait for 10 seconds before publishing the next message
     except KeyboardInterrupt:
-        # Handle graceful shutdown on user interrupt
         print("Exiting")
     finally:
-        # Disconnect the MQTT client
+        # Disconnect the client
         await client.disconnect()
 
 if __name__ == '__main__':
-    # Run the main function asynchronously
+    # Run the main coroutine
     asyncio.run(main())
