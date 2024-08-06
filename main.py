@@ -4,6 +4,7 @@ import ssl
 import os
 import random
 from datetime import datetime
+import pytz
 from gmqtt import Client as MQTTClient
 from dotenv import load_dotenv
 
@@ -58,8 +59,9 @@ async def main():
     await client.connect(os.getenv('AWS_ENDPOINT'), 8883, ssl=ssl_context)
     
     try:
+        local_timezone = pytz.timezone("America/Chicago")
         while True:
-            now = datetime.utcnow().isoformat() + 'Z'  # Current UTC time in ISO format
+            now = datetime.now(local_timezone).strftime("%m/%d/%Y | %H:%M:%S")  # Current local time formatted
 
             # Possible error codes for the payload
             possible_errors = ["E001", "E002", "E003", "E004", "E005"]
@@ -86,6 +88,7 @@ async def main():
             client.publish("iot/topic", payload, qos=1)
             print(f"Published: {payload}")
             await asyncio.sleep(10)  # Wait for 10 seconds before publishing the next message
+
     except KeyboardInterrupt:
         print("Exiting")
     finally:
